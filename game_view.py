@@ -10,6 +10,7 @@ gameFont = pygame.font.SysFont('Calibri', 32)
 # global settings and variables
 clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 Player = 0
+PlayerID = 0
 Playing = False
 player1Points = 0
 player2Points = 0
@@ -38,22 +39,6 @@ areas = [
   (area, (50, 470)), (area, (265, 470)), (area, (470, 470)), # 7 8 9
 ]
 
-# win conditions
-rows = [ 
-    # Vertical lines 
-    ((50, 50),  (50, 270),  (50, 470)),  # 1 4 7
-    ((265, 50), (265, 270), (265, 470)), # 2 5 8
-    ((470, 50), (470, 270), (470, 470)), # 3 6 9
-
-    # Horizontal lines
-    ((50, 50),  (265, 50),  (470, 50)),  # 1 2 3
-    ((50, 270), (265, 270), (470, 270)), # 4 5 6
-    ((50, 470), (265, 470), (470, 470)), # 7 8 9
-
-    # Diagonal lines
-    ((50, 50),  (265, 270), (470, 470)), # 1 5 9
-    ((470, 50), (265, 270), (50, 470)),  # 3 5 7
-]
 # dinamyc lists
 xList = []
 circleList = []
@@ -74,12 +59,12 @@ def drawComponents():
 
   for area in areas:
     if area[0].get_rect(topleft=area[1]).collidepoint(pygame.mouse.get_pos()):
-      if Player == 0:
-        window.blit(sleep, area[1])
-      elif Player == 1:
+      if Player == 1 and  PlayerID == 1:
         window.blit(transparentX, area[1])
-      else:
+      elif Player == 2 and  PlayerID == 2:
         window.blit(transparentCircle, area[1])
+      else:
+        window.blit(sleep, area[1])
 
   for position in xList:
     window.blit(x, position)
@@ -102,28 +87,11 @@ def update():
         for area in areas:
           if area[0].get_rect(topleft=area[1]).collidepoint(pygame.mouse.get_pos()):
             if not xList.__contains__(area[1]) and not circleList.__contains__(area[1]):
-              if Player == 1:
+              if Player == 1 and PlayerID == 1:
                 sendPlay(area[1], 1)
-                # xList.append(area[1])
-                Player = 2
-              else:
+                
+              elif Player == 2 and PlayerID == 2:
                 sendPlay(area[1], 2)
-                # circleList.append(area[1])
-                Player = 1
-
-  # if player1wins():
-  #   player1Points = player1Points + 1
-  #   print('Player 1 wins!')
-  #   newRound()
-
-  # if player2wins():
-  #   player2Points = player2Points + 1
-  #   print('Player 2 wins!')
-  #   newRound()
-
-# if draft():
-#   print("Draft!")
-#   newRound()
 
 def player1wins():
   for row in rows:
@@ -149,35 +117,43 @@ def sendPlay(position, player):
 
 def handleResponse(data, pos, player):
   global player1Points, player2Points, xList, circleList
-  if data["code"] == 0:
+
+  if data["code"] == 200:
     if player == 1:
       xList.append(pos)
+      Player = data["player"]
     else:
       circleList.append(pos)
+      Player = data["player"]
 
   elif data["code"] == 1:
-    player1Points = player1Points + 1
+    player1Points = data["p1Points"]
+    player2Points = data["p2Points"]
     newRound()
 
   elif data["code"] == 2:
-    player2Points = player2Points + 1
+    player1Points = data["p1Points"]
+    player2Points = data["p2Points"]
     newRound()
 
   elif data["code"] == 3:
+    player1Points = data["p1Points"]
+    player2Points = data["p2Points"]
     newRound()
 
 def serverConnection():
-  global Player, Playing
+  global Player, PlayerID, Playing
   host = socket.gethostname()
   port = 3330
   clientSocket.connect((host, port))
-  data = pickle.loads(clientSocket.recv(1024))
-  if data["code"] == 10:
-    print("Waiting other player")
-  elif data["code"] == 9:
-    Playing = True
-    Player = data["firstPlayer"]
-    print("Player: {}".format(data["firstPlayer"]))
+  data = pickle.loads(clientSocket.recv(4096))  
+
+  data2 = pickle.loads(clientSocket.recv(4096))
+
+  Playing = True
+  PlayerID = data2["id"]
+  Player = data2["firstPlayer"]
+  print("Player {}".format(PlayerID))
 
 while True:
   if not connected:
